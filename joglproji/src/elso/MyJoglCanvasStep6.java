@@ -1,6 +1,8 @@
 package elso;
 
 import java.awt.BorderLayout;
+import java.awt.Dimension;
+import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.io.IOException;
@@ -29,6 +31,82 @@ import com.jogamp.opengl.util.texture.TextureIO;
  * @since 26 Feb 2009
  */
 public class MyJoglCanvasStep6 extends GLCanvas implements GLEventListener {
+
+	// camera related
+	private final static double SPEED = 0.05; // for camera movement
+	private final static double LOOK_AT_DIST = 100.0;
+	private final static double Z_POS = 30;
+	private final static double ANGLE_INCR = 0.2; // degrees
+	private final static double HEIGHT_STEP = 0.3;
+	// camera movement
+	private double xCamPos, yCamPos, zCamPos;
+	private double xLookAt, yLookAt, zLookAt;
+	private double xStep, zStep;
+	private double viewAngle;
+	
+	boolean [] keyboard;
+
+	private void initViewerPosn()
+	/*
+	 * Specify the camera (player) position, the x- and z- step distance, and
+	 * the position being looked at.
+	 */
+	{
+		xCamPos = 0;
+		yCamPos = 0;
+		zCamPos = Z_POS; // camera posn
+
+		viewAngle = -90.0; // along -z axis
+		xStep = Math.cos(Math.toRadians(viewAngle)); // step distances
+		zStep = Math.sin(Math.toRadians(viewAngle));
+
+		xLookAt = 0;
+		yLookAt = 0;
+		zLookAt = 0;
+	} // end of initViewerPosn()
+
+	private void processKey()
+	// handles termination, and the game-play keys
+	{
+		
+
+		if (keyboard[KeyEvent.VK_A]) {
+			xCamPos += zStep * SPEED;
+			zCamPos -= xStep * SPEED;
+		}  if (keyboard[KeyEvent.VK_D]) {
+			xCamPos -= zStep * SPEED;
+			zCamPos += xStep * SPEED;
+		}  if (keyboard[KeyEvent.VK_W]) {
+			xCamPos += xStep * SPEED;
+			zCamPos += zStep * SPEED;
+		} if (keyboard[KeyEvent.VK_S]) {
+			xCamPos -= xStep * SPEED;
+			zCamPos -= zStep * SPEED;
+		} 
+
+		if (keyboard[KeyEvent.VK_LEFT]) { // left
+			viewAngle -= ANGLE_INCR;
+			xStep = Math.cos(Math.toRadians(viewAngle));
+			zStep = Math.sin(Math.toRadians(viewAngle));
+
+		}  if (keyboard[KeyEvent.VK_RIGHT]) { // right
+			viewAngle += ANGLE_INCR;
+			xStep = Math.cos(Math.toRadians(viewAngle));
+			zStep = Math.sin(Math.toRadians(viewAngle));
+
+		} if (keyboard[KeyEvent.VK_UP]) { // move forward
+			yCamPos += HEIGHT_STEP;
+			yLookAt += HEIGHT_STEP;
+		}  if (keyboard[KeyEvent.VK_DOWN]) { // move backwards
+			yCamPos -= HEIGHT_STEP;
+			yLookAt -= HEIGHT_STEP;
+		}
+
+		// new look-at point
+		xLookAt = xCamPos + (xStep * LOOK_AT_DIST);
+		zLookAt = zCamPos + (zStep * LOOK_AT_DIST);
+
+	} // end of processKey()
 
 	/** Serial version UID. */
 	private static final long serialVersionUID = 1L;
@@ -83,6 +161,9 @@ public class MyJoglCanvasStep6 extends GLCanvas implements GLEventListener {
 	 * @see javax.media.opengl.GLEventListener#init(javax.media.opengl.GLAutoDrawable)
 	 */
 	public void init(GLAutoDrawable drawable) {
+		
+		
+		keyboard= new boolean [400];
 		drawable.setGL(new DebugGL2(drawable.getGL().getGL2()));
 		final GL2 gl = drawable.getGL().getGL2();
 
@@ -124,27 +205,27 @@ public class MyJoglCanvasStep6 extends GLCanvas implements GLEventListener {
 			System.exit(2);
 		}
 
-		this.addKeyListener(new KeyListener() {
-
+		addKeyListener(new KeyListener() {
+			
 			@Override
-			public void keyTyped(KeyEvent arg0) {
-				// TODO Auto-generated method stub
-
-			}
-
+			public void keyTyped(KeyEvent e) {
+					
+			}			
 			@Override
-			public void keyReleased(KeyEvent arg0) {
-				// TODO Auto-generated method stub
-
+			public void keyReleased(KeyEvent e) {
+				int keyCode = e.getKeyCode();		
+				keyboard[keyCode]=false;
 			}
-
+			
 			@Override
-			public void keyPressed(KeyEvent key) {
-				System.out.println(key.getKeyChar());
-
+			public void keyPressed(KeyEvent e) {
+				int keyCode = e.getKeyCode();	
+				keyboard[keyCode]=true;
 			}
-		});
-
+		}
+		
+		);
+		initViewerPosn();
 		// Start animator.
 		animator = new FPSAnimator(this, fps);
 		animator.start();
@@ -166,13 +247,14 @@ public class MyJoglCanvasStep6 extends GLCanvas implements GLEventListener {
 		gl.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT);
 
 		// Set camera.
+		processKey();
 		setCamera(gl, glu, 30);
 
 		// Prepare light parameters.
 		float SHINE_ALL_DIRECTIONS = 1;
 		float[] lightPos = { -30, 0, 0, SHINE_ALL_DIRECTIONS };
 		float[] lightColorAmbient = { 0.2f, 0.2f, 0.2f, 1f };
-		float[] lightColorSpecular = { 0.8f, 0.8f, 0.8f, 1f };
+		float[] lightColorSpecular = { 0.8f, 0.0f, 0.0f, 1f };
 
 		// Set light parameters.
 		gl.glLightfv(GL2.GL_LIGHT1, GL2.GL_POSITION, lightPos, 0);
@@ -344,7 +426,9 @@ public class MyJoglCanvasStep6 extends GLCanvas implements GLEventListener {
 		// Perspective.
 		float widthHeightRatio = (float) getWidth() / (float) getHeight();
 		glu.gluPerspective(45, widthHeightRatio, 1, 1000);
-		glu.gluLookAt(0, 0, distance, 0, 0, 0, 0, 1, 0);
+		glu.gluLookAt(xCamPos, yCamPos, zCamPos, xLookAt, yLookAt, zLookAt, 0,
+				1, 0);
+		// glu.gluLookAt(0, 0, distance, 0, 0, 0, 0, 1, 0);
 
 		// Change back to model view matrix.
 		gl.glMatrixMode(GL2.GL_MODELVIEW);
@@ -363,6 +447,7 @@ public class MyJoglCanvasStep6 extends GLCanvas implements GLEventListener {
 		JFrame frame = new JFrame("Mini JOGL Demo (breed)");
 		frame.getContentPane().add(canvas, BorderLayout.CENTER);
 		frame.setSize(800, 500);
+        frame.setMinimumSize(new Dimension(640, 480));
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		frame.setVisible(true);
 		canvas.requestFocus();
